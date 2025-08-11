@@ -12,10 +12,9 @@
     }
   },
   "env": {
-    "OPENAI_API_KEY": "@openai-api-key",
-    "ANTHROPIC_API_KEY": "@anthropic-api-key",
-    "DATABASE_URL": "@database-url",
-    "JWT_SECRET": "@jwt-secret"
+    "GPTOSS_SERVER_URL": "http://localhost:8000",
+    "DATABASE_URL": "postgresql://user:password@localhost:5432/ai_conversation",
+    "JWT_SECRET": "temporary-secret-for-development"
   },
   "regions": ["fra1", "iad1"],
   "headers": [
@@ -37,4 +36,4 @@
       ]
     }
   ]
-} 
+}
