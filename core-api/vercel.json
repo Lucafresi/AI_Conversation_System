@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "functions": {
+    "api/chat.ts": {
+      "maxDuration": 30
+    },
+    "api/rag/query.ts": {
+      "maxDuration": 30
+    },
+    "api/health.ts": {
+      "maxDuration": 10
+    }
+  },
+  "env": {
+    "OPENAI_API_KEY": "@openai-api-key",
+    "ANTHROPIC_API_KEY": "@anthropic-api-key",
+    "DATABASE_URL": "@database-url",
+    "JWT_SECRET": "@jwt-secret"
+  },
+  "regions": ["fra1", "iad1"],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    }
+  ]
+} 

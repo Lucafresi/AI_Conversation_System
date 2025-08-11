@@ -1,0 +1,48 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Edge Gateway
+  - job_name: 'edge-gateway'
+    static_configs:
+      - targets: ['edge-gateway:8787']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Core API
+  - job_name: 'core-api'
+    static_configs:
+      - targets: ['core-api:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Model Router
+  - job_name: 'model-router'
+    static_configs:
+      - targets: ['model-router:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # PostgreSQL
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: '/metrics'
+    scrape_interval: 30s 

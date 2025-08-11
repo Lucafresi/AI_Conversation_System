@@ -1,0 +1,192 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ai_conversation
+      POSTGRES_USER: ai_user
+      POSTGRES_PASSWORD: ai_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_user -d ai_conversation"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # GPT-OSS 20B Server (CPU-based)
+  gpt-oss-20b:
+    image: ollama/ollama:latest
+    ports:
+      - "8000:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./models:/models
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+    command: >
+      sh -c "
+        ollama pull gpt-oss:20b &&
+        ollama serve --port 11434
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # GPT-OSS 120B Server (GPU-based, optional)
+  gpt-oss-120b:
+    image: ollama/ollama:latest
+    ports:
+      - "8001:11434"
+    volumes:
+      - ollama_data_120b:/root/.ollama
+      - ./models:/models
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+    command: >
+      sh -c "
+        ollama pull gpt-oss:120b &&
+        ollama serve --port 11434
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    profiles:
+      - gpu-required
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Model Router
+  model-router:
+    build:
+      context: ../model-router
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GPT_OSS_20B_ENDPOINT=http://gpt-oss-20b:11434
+      - GPT_OSS_120B_ENDPOINT=http://gpt-oss-120b:11434
+    ports:
+      - "3001:3001"
+    depends_on:
+      redis:
+        condition: service_healthy
+      gpt-oss-20b:
+        condition: service_healthy
+    volumes:
+      - ../model-router:/app
+      - /app/node_modules
+
+  # Core API (for local development)
+  core-api:
+    build:
+      context: ../core-api
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=postgresql://ai_user:ai_password@postgres:5432/ai_conversation
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - REDIS_URL=redis://redis:6379
+      - GPT_OSS_20B_ENDPOINT=http://gpt-oss-20b:11434
+      - GPT_OSS_120B_ENDPOINT=http://gpt-oss-120b:11434
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      gpt-oss-20b:
+        condition: service_healthy
+    volumes:
+      - ../core-api:/app
+      - /app/node_modules
+
+  # Edge Gateway (for local development)
+  edge-gateway:
+    build:
+      context: ../edge-gateway
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - CORE_API_URL=http://core-api:3000
+      - JWT_SECRET=${JWT_SECRET:-dev-secret}
+    ports:
+      - "8787:8787"
+    depends_on:
+      core-api:
+        condition: service_started
+    volumes:
+      - ../edge-gateway:/app
+      - /app/node_modules
+
+  # Monitoring stack
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_data:
+  ollama_data_120b:
+  prometheus_data:
+  grafana_data: 

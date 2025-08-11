@@ -1,0 +1,29 @@
+name = "ai-conversation-edge"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[env.production]
+name = "ai-conversation-edge-prod"
+
+[env.staging]
+name = "ai-conversation-edge-staging"
+
+[[kv_namespaces]]
+binding = "AI_CONFIG"
+id = "placeholder-kv-id"
+preview_id = "placeholder-preview-kv-id"
+
+[[r2_buckets]]
+binding = "AI_CACHE"
+bucket_name = "ai-conversation-cache"
+
+[build]
+command = "npm run build"
+watch_dir = "src"
+
+[build.upload]
+format = "modules"
+main = "./dist/index.js"
+
+[site]
+bucket = "./public" 
